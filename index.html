@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoadMeet - 让相遇更有趣</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#F59E0B',
+                        dark: '#1F2937',
+                        gray: '#6B7280',
+                        light: '#F9FAFB',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Storage utilities
+        const STORAGE_KEYS = {
+            USER: 'roadmeet_user',
+            TASKS: 'roadmeet_tasks',
+        };
+
+        const getUser = () => {
+            const data = localStorage.getItem(STORAGE_KEYS.USER);
+            return data ? JSON.parse(data) : null;
+        };
+
+        const setUser = (user) => {
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+        };
+
+        const removeUser = () => {
+            localStorage.removeItem(STORAGE_KEYS.USER);
+        };
+
+        const getTasks = () => {
+            const data = localStorage.getItem(STORAGE_KEYS.TASKS);
+            return data ? JSON.parse(data) : [];
+        };
+
+        const saveTask = (task) => {
+            const tasks = getTasks();
+            const existingIndex = tasks.findIndex(t => t.id === task.id);
+            if (existingIndex >= 0) {
+                tasks[existingIndex] = task;
+            } else {
+                tasks.push(task);
+            }
+            localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
+        };
+
+        const getTaskById = (id) => {
+            return getTasks().find(t => t.id === id);
+        };
+
+        const generateMeetCode = () => {
+            return Math.floor(Math.random() * 16777215).toString(16).toUpperCase().padStart(6, '0');
+        };
+
+        const calculateMidpoint = (loc1, loc2) => ({
+            lat: (loc1.lat + loc2.lat) / 2,
+            lng: (loc1.lng + loc2.lng) / 2,
+        });
+
+        // Components
+        function LoginPage({ onLogin }) {
+            const [phone, setPhone] = useState('');
+            const [code, setCode] = useState('');
+            const [countdown, setCountdown] = useState(0);
+            const [error, setError] = useState('');
+            const [isRegister, setIsRegister] = useState(false);
+
+            const sendCode = () => {
+                if (!phone || phone.length !== 11) {
+                    setError('请输入正确的手机号');
+                    return;
+                }
+                setCountdown(60);
+                const timer = setInterval(() => {
+                    setCountdown(prev => {
+                        if (prev <= 1) {
+                            clearInterval(timer);
+                            return 0;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (code !== '123456') {
+                    setError('验证码错误，请输入 123456');
+                    return;
+                }
+                
+                const user = {
+                    phone,
+                    token: `mock_token_${Date.now()}`,
+                    createdAt: new Date().toISOString(),
+                };
+                setUser(user);
+                onLogin(user);
+            };
+
+            return (
+                <div className="min-h-screen bg-light flex items-center justify-center p-4">
+                    <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+                        <div className="text-center mb-8">
+                            <h1 className="text-3xl font-bold text-dark mb-2">RoadMeet</h1>
+                            <p className="text-gray">{isRegister ? '开启你的相遇之旅' : '让相遇更有趣'}</p>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-dark mb-2">手机号</label>
+                                <input
+                                    type="tel"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    placeholder="请输入手机号"
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
+                                    maxLength={11}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-dark mb-2">验证码</label>
+                                <div className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        value={code}
+                                        onChange={(e) => setCode(e.target.value)}
+                                        placeholder="请输入验证码"
+                                        className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
+                                        maxLength={6}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={sendCode}
+                                        disabled={countdown > 0}
+                                        className="px-4 py-3 bg-primary text-white rounded-xl font-medium disabled:bg-gray-300 whitespace-nowrap"
+                                    >
+                                        {countdown > 0 ? `${countdown}s` : '获取验证码'}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray mt-2">演示验证码: 123456</p>
+                            </div>
+
+                            {error && <div className="text-red-500 text-sm text-center">{error}</div>}
+
+                            <button type="submit" className="w-full py-3 bg-primary text-white rounded-xl font-medium hover:bg-blue-600">
+                                {isRegister ? '注册' : '登录'}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 text-center">
+                            <button onClick={() => setIsRegister(!isRegister)} className="text-primary hover:underline">
+                                {isRegister ? '已有账号？立即登录' : '还没有账号？立即注册'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function Dashboard({ user, onLogout, onNavigate }) {
+            const [tasks, setTasks] = useState([]);
+            const [showCreate, setShowCreate] = useState(false);
+            const [showJoin, setShowJoin] = useState(false);
+            const [joinCode, setJoinCode] = useState('');
+
+            useEffect(() => {
+                setTasks(getTasks().filter(t => t.creatorPhone === user.phone || t.partnerPhone === user.phone));
+            }, [user]);
+
+            const handleCreate = () => {
+                const newTask = {
+                    id: `task_${Date.now()}`,
+                    code: generateMeetCode(),
+                    creatorPhone: user.phone,
+                    status: 'pending',
+                    editCount: { creator: 0, partner: 0 },
+                    maxEdits: 6,
+                    createdAt: new Date().toISOString(),
+                };
+                saveTask(newTask);
+                onNavigate('task', newTask.id);
+            };
+
+            const handleJoin = () => {
+                const task = getTasks().find(t => t.code === joinCode.toUpperCase());
+                if (!task) {
+                    alert('未找到该见面任务，请检查代号');
+                    return;
+                }
+                if (task.creatorPhone === user.phone) {
+                    alert('不能加入自己创建的任务');
+                    return;
+                }
+                if (task.partnerPhone) {
+                    alert('该任务已被其他人加入');
+                    return;
+                }
+                task.partnerPhone = user.phone;
+                task.status = 'matched';
+                saveTask(task);
+                onNavigate('task', task.id);
+            };
+
+            return (
+                <div className="min-h-screen bg-light">
+                    <header className="bg-white shadow-sm">
+                        <div className="max-w-md mx-auto px-4 py-4 flex justify-between items-center">
+                            <h1 className="text-xl font-bold text-dark">RoadMeet</h1>
+                            <button onClick={onLogout} className="text-sm text-gray hover:text-primary">退出</button>
+                        </div>
+                    </header>
+
+                    <main className="max-w-md mx-auto px-4 py-6">
+                        <div className="mb-6">
+                            <p className="text-gray">欢迎回来</p>
+                            <p className="text-lg font-medium text-dark">{user.phone}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-8">
+                            <button onClick={() => setShowCreate(true)} className="bg-primary text-white p-6 rounded-2xl text-center hover:bg-blue-600">
+                                <div className="text-3xl mb-2">+</div>
+                                <div className="font-medium">创建见面</div>
+                            </button>
+                            <button onClick={() => setShowJoin(true)} className="bg-secondary text-white p-6 rounded-2xl text-center hover:bg-green-600">
+                                <div className="text-3xl mb-2">#</div>
+                                <div className="font-medium">加入见面</div>
+                            </button>
+                        </div>
+
+                        <div>
+                            <h2 className="text-lg font-medium text-dark mb-4">我的见面</h2>
+                            {tasks.length === 0 ? (
+                                <div className="text-center py-12 bg-white rounded-2xl">
+                                    <p className="text-gray">暂无见面任务</p>
+                                    <p className="text-sm text-gray mt-1">创建或加入一个见面吧</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {tasks.map(task => (
+                                        <div key={task.id} onClick={() => onNavigate('task', task.id)} 
+                                            className="bg-white p-4 rounded-2xl shadow-sm cursor-pointer hover:shadow-md">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="text-lg font-bold text-primary">#{task.code}</div>
+                                                    <div className="text-sm text-gray mt-1">
+                                                        {task.status === 'pending' && '等待匹配'}
+                                                        {task.status === 'matched' && '匹配成功'}
+                                                        {task.status === 'ongoing' && '见面中'}
+                                                        {task.status === 'completed' && '已完成'}
+                                                        {task.status === 'cancelled' && '已取消'}
+                                                    </div>
+                                                </div>
+                                                <div className="text-xs text-gray">{new Date(task.createdAt).toLocaleDateString()}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </main>
+
+                    {showCreate && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+                                <h3 className="text-lg font-bold text-dark mb-4">创建见面任务</h3>
+                                <p className="text-gray text-sm mb-6">创建后将生成唯一的6位16进制代号，分享给对方即可匹配见面。</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowCreate(false)} className="flex-1 py-3 border border-gray-200 rounded-xl text-dark">取消</button>
+                                    <button onClick={handleCreate} className="flex-1 py-3 bg-primary text-white rounded-xl">创建</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showJoin && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+                                <h3 className="text-lg font-bold text-dark mb-4">加入见面任务</h3>
+                                <input type="text" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                                    placeholder="输入6位代号（如：A3F9B2）" className="w-full px-4 py-3 border border-gray-200 rounded-xl mb-6" maxLength={6} />
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowJoin(false)} className="flex-1 py-3 border border-gray-200 rounded-xl text-dark">取消</button>
+                                    <button onClick={handleJoin} className="flex-1 py-3 bg-secondary text-white rounded-xl">加入</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function TaskDetail({ user, taskId, onBack, onNavigate }) {
+            const [task, setTask] = useState(null);
+            const [location, setLocation] = useState(null);
+            const [showCancel, setShowCancel] = useState(false);
+
+            useEffect(() => {
+                const t = getTaskById(taskId);
+                setTask(t);
+            }, [taskId]);
+
+            const getLocation = () => {
+                if (!navigator.geolocation) {
+                    alert('您的浏览器不支持地理定位');
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                        setLocation(loc);
+                        const updated = { ...task };
+                        if (task.creatorPhone === user.phone) {
+                            updated.creatorLocation = loc;
+                        } else {
+                            updated.partnerLocation = loc;
+                        }
+                        if (updated.creatorLocation && updated.partnerLocation) {
+                            updated.status = 'ongoing';
+                        }
+                        saveTask(updated);
+                        setTask(updated);
+                    },
+                    () => alert('无法获取位置信息')
+                );
+            };
+
+            const handleCancel = () => {
+                const updated = { ...task, status: 'cancelled', cancelledBy: user.phone };
+                saveTask(updated);
+                setTask(updated);
+                setShowCancel(false);
+            };
+
+            if (!task) return <div className="p-4">加载中...</div>;
+
+            const isCreator = task.creatorPhone === user.phone;
+            const canViewMap = task.creatorLocation && task.partnerLocation;
+
+            return (
+                <div className="min-h-screen bg-light">
+                    <header className="bg-white shadow-sm">
+                        <div className="max-w-md mx-auto px-4 py-4 flex items-center gap-4">
+                            <button onClick={onBack} className="text-gray">← 返回</button>
+                            <h1 className="text-lg font-bold text-dark">见面详情</h1>
+                        </div>
+                    </header>
+
+                    <main className="max-w-md mx-auto px-4 py-6">
+                        <div className="bg-white rounded-2xl p-6 text-center mb-6">
+                            <p className="text-gray text-sm mb-2">见面代号</p>
+                            <div className="text-4xl font-bold text-primary tracking-wider">#{task.code}</div>
+                            <div className="mt-4">
+                                <span className={`px-3 py-1 rounded-full text-xs ${
+                                    task.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                    task.status === 'matched' ? 'bg-blue-100 text-blue-700' :
+                                    task.status === 'ongoing' ? 'bg-green-100 text-green-700' :
+                                    'bg-red-100 text-red-700'
+                                }`}>
+                                    {task.status === 'pending' && '等待匹配'}
+                                    {task.status === 'matched' && '匹配成功'}
+                                    {task.status === 'ongoing' && '见面中'}
+                                    {task.status === 'cancelled' && '已取消'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl p-6 mb-6">
+                            <h3 className="font-medium text-dark mb-4">位置状态</h3>
+                            <div className="space-y-3">
+                                <div className="flex justify-between">
+                                    <span className="text-gray">创建者位置</span>
+                                    <span className={task.creatorLocation ? 'text-secondary' : 'text-gray'}>
+                                        {task.creatorLocation ? '✓ 已共享' : '等待中...'}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray">对方位置</span>
+                                    <span className={task.partnerLocation ? 'text-secondary' : 'text-gray'}>
+                                        {task.partnerLocation ? '✓ 已共享' : '等待中...'}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {!location && task.status !== 'cancelled' && (
+                                <button onClick={getLocation} className="w-full mt-4 py-3 bg-primary text-white rounded-xl">
+                                    共享我的位置
+                                </button>
+                            )}
+                            
+                            {location && (
+                                <div className="mt-4 p-3 bg-blue-50 rounded-xl text-sm text-primary">
+                                    您的位置已共享<br/>
+                                    纬度: {location.lat.toFixed(6)}<br/>
+                                    经度: {location.lng.toFixed(6)}
+                                </div>
+                            )}
+                        </div>
+
+                        {canViewMap && (
+                            <button onClick={() => onNavigate('map', task.id)} className="block w-full py-4 bg-secondary text-white rounded-xl text-center font-medium mb-4">
+                                查看地图和推荐地点 →
+                            </button>
+                        )}
+
+                        {task.status !== 'cancelled' && (
+                            <button onClick={() => setShowCancel(true)} className="w-full py-3 border border-red-200 text-red-500 rounded-xl">
+                                取消见面
+                            </button>
+                        )}
+                    </main>
+
+                    {showCancel && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+                                <h3 className="text-lg font-bold text-dark mb-4">确认取消见面？</h3>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowCancel(false)} className="flex-1 py-3 border border-gray-200 rounded-xl">再想想</button>
+                                    <button onClick={handleCancel} className="flex-1 py-3 bg-red-500 text-white rounded-xl">确认取消</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function MapPage({ taskId, onBack }) {
+            const [task, setTask] = useState(null);
+            const [selectedPlace, setSelectedPlace] = useState(null);
+
+            const MOCK_PLACES = [
+                { name: '星巴克咖啡', address: '距离中点 200米', type: 'coffee', rating: 4.5 },
+                { name: '喜茶', address: '距离中点 350米', type: 'tea', rating: 4.3 },
+                { name: '西西弗书店', address: '距离中点 500米', type: 'bookstore', rating: 4.7 },
+                { name: '海底捞火锅', address: '距离中点 800米', type: 'restaurant', rating: 4.6 },
+                { name: '城市公园', address: '距离中点 600米', type: 'park', rating: 4.4 },
+            ];
+
+            useEffect(() => {
+                setTask(getTaskById(taskId));
+            }, [taskId]);
+
+            if (!task) return <div className="p-4">加载中...</div>;
+
+            const midpoint = calculateMidpoint(task.creatorLocation, task.partnerLocation);
+
+            return (
+                <div className="min-h-screen bg-light">
+                    <header className="bg-white shadow-sm">
+                        <div className="max-w-md mx-auto px-4 py-4 flex items-center gap-4">
+                            <button onClick={onBack} className="text-gray">← 返回</button>
+                            <h1 className="text-lg font-bold text-dark">选择见面地点</h1>
+                        </div>
+                    </header>
+
+                    <div className="max-w-md mx-auto">
+                        <div className="h-64 bg-gradient-to-br from-blue-100 to-green-100 relative overflow-hidden">
+                            <svg className="w-full h-full opacity-30" viewBox="0 0 400 300">
+                                {[...Array(10)].map((_, i) => <line key={`h${i}`} x1="0" y1={i*30} x2="400" y2={i*30} stroke="#cbd5e1" />)}
+                                {[...Array(14)].map((_, i) => <line key={`v${i}`} x1={i*30} y1="0" x2={i*30} y2="300" stroke="#cbd5e1" />)}
+                                <line x1="100" y1="0" x2="100" y2="300" stroke="#94a3b8" strokeWidth="4" />
+                                <line x1="0" y1="150" x2="400" y2="150" stroke="#94a3b8" strokeWidth="4" />
+                            </svg>
+                            
+                            <div className="absolute" style={{left:'30%',top:'40%'}}>
+                                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-xs font-bold">A</div>
+                                <p className="text-xs bg-white px-2 py-1 rounded shadow mt-1">创建者</p>
+                            </div>
+                            <div className="absolute" style={{left:'70%',top:'60%'}}>
+                                <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-white text-xs font-bold">B</div>
+                                <p className="text-xs bg-white px-2 py-1 rounded shadow mt-1">对方</p>
+                            </div>
+                            <div className="absolute" style={{left:'50%',top:'50%'}}>
+                                <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center text-white animate-pulse">★</div>
+                                <p className="text-xs bg-white px-2 py-1 rounded shadow mt-1 font-medium">推荐中点</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-4 border-b">
+                            <div className="flex justify-between text-sm">
+                                <div>
+                                    <span className="text-gray">中点坐标</span>
+                                    <p className="font-medium text-dark">{midpoint.lat.toFixed(4)}, {midpoint.lng.toFixed(4)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-gray">推荐地点</span>
+                                    <p className="font-medium text-primary">{MOCK_PLACES.length} 个</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4">
+                            <h3 className="font-medium text-dark mb-3">推荐见面地点</h3>
+                            <div className="space-y-3">
+                                {MOCK_PLACES.map((place, i) => (
+                                    <div key={i} onClick={() => setSelectedPlace(place)}
+                                        className={`bg-white p-4 rounded-xl shadow-sm cursor-pointer ${selectedPlace?.name === place.name ? 'ring-2 ring-primary' : ''}`}>
+                                        <div className="flex justify-between">
+                                            <div>
+                                                <h4 className="font-medium text-dark">{place.name}</h4>
+                                                <p className="text-sm text-gray">{place.address}</p>
+                                                <div className="flex gap-2 mt-2">
+                                                    <span className="text-xs px-2 py-1 bg-blue-50 text-primary rounded">
+                                                        {place.type === 'coffee' && '☕ 咖啡'}
+                                                        {place.type === 'tea' && '🧋 茶饮'}
+                                                        {place.type === 'bookstore' && '📚 书店'}
+                                                        {place.type === 'restaurant' && '🍽️ 餐厅'}
+                                                        {place.type === 'park' && '🌳 公园'}
+                                                    </span>
+                                                    <span className="text-xs text-accent">★ {place.rating}</span>
+                                                </div>
+                                            </div>
+                                            {selectedPlace?.name === place.name && <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white text-xs">✓</div>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {selectedPlace && (
+                                <button onClick={() => alert(`已选择 ${selectedPlace.name} 作为见面地点！`)}
+                                    className="w-full mt-6 py-4 bg-primary text-white rounded-xl font-medium">
+                                    确认选择：{selectedPlace.name}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Main App
+        function App() {
+            const [user, setUser] = useState(null);
+            const [page, setPage] = useState('login');
+            const [taskId, setTaskId] = useState(null);
+
+            useEffect(() => {
+                const u = getUser();
+                if (u) {
+                    setUser(u);
+                    setPage('dashboard');
+                }
+            }, []);
+
+            const handleLogin = (u) => {
+                setUser(u);
+                setPage('dashboard');
+            };
+
+            const handleLogout = () => {
+                removeUser();
+                setUser(null);
+                setPage('login');
+            };
+
+            const handleNavigate = (to, id) => {
+                if (id) setTaskId(id);
+                setPage(to);
+            };
+
+            return (
+                <div>
+                    {page === 'login' && <LoginPage onLogin={handleLogin} />}
+                    {page === 'dashboard' && <Dashboard user={user} onLogout={handleLogout} onNavigate={handleNavigate} />}
+                    {page === 'task' && <TaskDetail user={user} taskId={taskId} onBack={() => setPage('dashboard')} onNavigate={handleNavigate} />}
+                    {page === 'map' && <MapPage taskId={taskId} onBack={() => setPage('task')} />}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
